@@ -1,19 +1,22 @@
 <script lang="ts">
 	export let data;
 	import { instantiateDuckDb } from '$lib/duckdb';
-	import Speech from '$lib/components/speech.svelte';
+	import Results from '$lib/components/speech.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { base } from '$app/paths';
 
 	async function load_db() {
-		console.log('LOADING DB');
-		// A simple case of a db of a single parquet file.
 		const db = await instantiateDuckDb();
-		await db.registerFileURL('acteurs.csv', `${base}/acteurs_part_1.csv`, 4, false);
+
+		for (let i = 1; i <= 5; i++) {
+			const filename = `acteurs_part_${i}.csv`
+		  await db.registerFileURL(filename, `${base}/${filename}`, 4, false);
+		}
+
 		const conn = await db.connect();
 		await conn.query(`
 			LOAD spatial;
-			CREATE TABLE acteurs AS SELECT * FROM 'acteurs.csv';
+			CREATE TABLE acteurs AS SELECT * FROM read_csv_auto('acteurs*.csv');
 		`);
 		return conn;
 	}
@@ -46,7 +49,7 @@
 {#await results}
 	<Spinner></Spinner>
 {:then result}
-	<Speech {results} />
+	<Results {results} />
 {/await}
 
 <style>

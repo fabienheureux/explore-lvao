@@ -6,7 +6,6 @@
   // when the promise resolves, populate geoJsonData
   $: (async () => {
     const values = await results;
-    console.log({ values })
     geoJsonData = {
       type: "FeatureCollection",
       features: values.toArray().map(({ latitude, longitude }) => ({
@@ -37,3 +36,7 @@
       />
     </GeoJSONSource>
 </MapLibre>
+
+<div class="p-2  rounded-full shadow-xl bg-white/75 ring fixed bottom-10 right-10">
+  {geoJsonData?.features.length} résultats
+</div>
