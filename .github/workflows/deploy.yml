@@ -33,9 +33,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Download dataset
-        run: npm run download-dataset
-
       - name: Build with Next.js
         run: npm run build
 
