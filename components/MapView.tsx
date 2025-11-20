@@ -195,70 +195,70 @@ export function MapView({
       <actorModal.Component
         title={selectedActor?.nom || "Détails de l'acteur"}
         size="large"
-        buttons={[
-          ...(selectedActor?.siret
-            ? [
-                {
-                  children: "Annuaire (SIRET)",
-                  iconId: "fr-icon-building-line",
-                  linkProps: {
-                    href: `https://annuaire-entreprises.data.gouv.fr/etablissement/${selectedActor.siret}`,
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                  },
-                  priority: "tertiary no outline" as const,
-                },
-              ]
-            : []),
-          ...(selectedActor?.siren
-            ? [
-                {
-                  children: "Annuaire Entreprise",
-                  iconId: "fr-icon-building-line",
-                  linkProps: {
-                    href: `https://annuaire-entreprises.data.gouv.fr/entreprise/${selectedActor.siren}`,
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                  },
-                  priority: "tertiary no outline" as const,
-                },
-                {
-                  children: "Societe.ninja",
-                  iconId: "fr-icon-external-link-line",
-                  linkProps: {
-                    href: `https://www.societe.ninja/data.html?siren=${selectedActor.siren}`,
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                  },
-                  priority: "tertiary no outline" as const,
-                },
-              ]
-            : []),
-          ...(selectedActor?.latitude && selectedActor?.longitude
-            ? [
-                {
-                  children: "Google Maps",
-                  iconId: "fr-icon-map-pin-2-line",
-                  linkProps: {
-                    href: `https://www.google.com/maps?q=${selectedActor.latitude},${selectedActor.longitude}`,
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                  },
-                  priority: "tertiary no outline" as const,
-                },
-                {
-                  children: "OpenStreetMap",
-                  iconId: "fr-icon-map-pin-2-line",
-                  linkProps: {
-                    href: `https://www.openstreetmap.org/?mlat=${selectedActor.latitude}&mlon=${selectedActor.longitude}&zoom=16`,
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                  },
-                  priority: "tertiary no outline" as const,
-                },
-              ]
-            : []),
-        ]}
+        // buttons={[
+        //   ...(selectedActor?.siret
+        //     ? [
+        //         {
+        //           children: "Annuaire (SIRET)",
+        //           iconId: "fr-icon-building-line",
+        //           linkProps: {
+        //             href: `https://annuaire-entreprises.data.gouv.fr/etablissement/${selectedActor.siret}`,
+        //             target: "_blank",
+        //             rel: "noopener noreferrer",
+        //           },
+        //           priority: "tertiary no outline" as const,
+        //         },
+        //       ]
+        //     : []),
+        //   ...(selectedActor?.siren
+        //     ? [
+        //         {
+        //           children: "Annuaire Entreprise",
+        //           iconId: "fr-icon-building-line",
+        //           linkProps: {
+        //             href: `https://annuaire-entreprises.data.gouv.fr/entreprise/${selectedActor.siren}`,
+        //             target: "_blank",
+        //             rel: "noopener noreferrer",
+        //           },
+        //           priority: "tertiary no outline" as const,
+        //         },
+        //         {
+        //           children: "Societe.ninja",
+        //           iconId: "fr-icon-external-link-line",
+        //           linkProps: {
+        //             href: `https://www.societe.ninja/data.html?siren=${selectedActor.siren}`,
+        //             target: "_blank",
+        //             rel: "noopener noreferrer",
+        //           },
+        //           priority: "tertiary no outline" as const,
+        //         },
+        //       ]
+        //     : []),
+        //   ...(selectedActor?.latitude && selectedActor?.longitude
+        //     ? [
+        //         {
+        //           children: "Google Maps",
+        //           iconId: "fr-icon-map-pin-2-line",
+        //           linkProps: {
+        //             href: `https://www.google.com/maps?q=${selectedActor.latitude},${selectedActor.longitude}`,
+        //             target: "_blank",
+        //             rel: "noopener noreferrer",
+        //           },
+        //           priority: "tertiary no outline" as const,
+        //         },
+        //         {
+        //           children: "OpenStreetMap",
+        //           iconId: "fr-icon-map-pin-2-line",
+        //           linkProps: {
+        //             href: `https://www.openstreetmap.org/?mlat=${selectedActor.latitude}&mlon=${selectedActor.longitude}&zoom=16`,
+        //             target: "_blank",
+        //             rel: "noopener noreferrer",
+        //           },
+        //           priority: "tertiary no outline" as const,
+        //         },
+        //       ]
+        //     : []),
+        // ]}
       >
         {selectedActor && (
           <>
