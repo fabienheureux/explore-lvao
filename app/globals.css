@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/* Ensure map container takes full space */
+.maplibregl-map {
+  font-family: Marianne, Arial, sans-serif;
+}
+
+/* Override defaults for our map layout */
+body {
+  margin: 0;
+  padding: 0;
+}
