@@ -29,6 +29,7 @@ interface FiltersPanelProps {
   types?: FilterOption[];
   actions?: FilterOption[];
   onLocationClick?: (latitude: number, longitude: number) => void;
+  onEpciSelect?: (code: string) => void;
 }
 
 export function FiltersPanel({
@@ -41,6 +42,7 @@ export function FiltersPanel({
   types = [{ value: "", label: "Tous les types" }],
   actions = [{ value: "", label: "Toutes les actions" }],
   onLocationClick,
+  onEpciSelect,
 }: FiltersPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [epciSearch, setEpciSearch] = useState("");
@@ -104,6 +106,11 @@ export function FiltersPanel({
     updateFilter("epci", code);
     setEpciSearch(nom);
     setShowEpciSuggestions(false);
+
+    // Notify parent to zoom to EPCI
+    if (onEpciSelect) {
+      onEpciSelect(code);
+    }
   };
 
   const handleGetLocation = () => {

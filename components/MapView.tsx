@@ -13,6 +13,7 @@ interface MapViewProps {
   mapRef?: any;
   onMapMove?: () => void;
   isSpatialMode?: boolean;
+  onMarkerHover?: (actor: any | null) => void;
 }
 
 const actorModal = createModal({
@@ -26,10 +27,12 @@ export function MapView({
   mapRef: externalMapRef,
   onMapMove,
   isSpatialMode = false,
+  onMarkerHover,
 }: MapViewProps) {
   const internalMapRef = useRef<MapRef>(null);
   const mapRef = externalMapRef || internalMapRef;
   const [selectedActor, setSelectedActor] = useState<any | null>(null);
+  const [hoveredActor, setHoveredActor] = useState<any | null>(null);
 
   // Convert data to GeoJSON
   const geoJsonData = useMemo(() => {
@@ -95,6 +98,38 @@ export function MapView({
     }
   };
 
+  const handleMapMouseMove = (event: any) => {
+    const features = event.features;
+    if (!features || features.length === 0) {
+      setHoveredActor(null);
+      if (onMarkerHover) {
+        onMarkerHover(null);
+      }
+      return;
+    }
+
+    const feature = features[0];
+    const { latitude, longitude, ...properties } = feature.properties;
+
+    const actor = {
+      latitude: feature.geometry.coordinates[1],
+      longitude: feature.geometry.coordinates[0],
+      ...properties,
+    };
+
+    setHoveredActor(actor);
+    if (onMarkerHover) {
+      onMarkerHover(actor);
+    }
+  };
+
+  const handleMapMouseLeave = () => {
+    setHoveredActor(null);
+    if (onMarkerHover) {
+      onMarkerHover(null);
+    }
+  };
+
   // Auto-fit bounds when data changes (only if not in spatial mode)
   useEffect(() => {
     if (!mapRef.current || !geoJsonData.features.length || isSpatialMode)
@@ -132,14 +167,16 @@ export function MapView({
       <Map
         ref={mapRef}
         initialViewState={{
-          longitude: -2,
-          latitude: 48,
-          zoom: 6,
+          longitude: -0.5632,
+          latitude: 47.4784,
+          zoom: 9,
         }}
         style={{ width: "100%", height: "100%" }}
         mapStyle="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
         interactiveLayerIds={["actors-points"]}
         onClick={handleMapClick}
+        onMouseMove={handleMapMouseMove}
+        onMouseLeave={handleMapMouseLeave}
         cursor="pointer"
         onMoveEnd={isSpatialMode && onMapMove ? onMapMove : undefined}
       >

@@ -206,27 +206,77 @@ export function useDuckDB() {
     }
 
     try {
-      const [sources, types, actions] = await Promise.all([
-        executeQuery(`
-          SELECT DISTINCT paternite as value
-          FROM acteurs
-          WHERE paternite IS NOT NULL
-          ORDER BY paternite;
-        `),
-        executeQuery(`
-          SELECT DISTINCT type_dacteur as value
-          FROM acteurs
-          WHERE type_dacteur IS NOT NULL
-          ORDER BY type_dacteur;
-        `),
-        executeQuery(`
-          SELECT DISTINCT json_extract_string(propositions_de_services, '$.action') as value
-          FROM acteurs
-          WHERE propositions_de_services IS NOT NULL
-          AND json_extract_string(propositions_de_services, '$.action') IS NOT NULL
-          ORDER BY value;
-        `),
-      ]);
+      // Get sources - query all and split in JavaScript
+      const sourcesQuery = await executeQuery(`
+        SELECT DISTINCT paternite as value
+        FROM acteurs
+        WHERE paternite IS NOT NULL AND paternite != '';
+      `);
+
+      // Split sources by pipe manually in JavaScript
+      const sourcesSet = new Set<string>();
+      sourcesQuery.forEach((row: any) => {
+        if (row.value) {
+          const parts = row.value.split("|");
+          parts.forEach((part: string) => {
+            const trimmed = part.trim();
+            if (trimmed) {
+              sourcesSet.add(trimmed);
+            }
+          });
+        }
+      });
+      const sources = Array.from(sourcesSet)
+        .sort()
+        .map((value) => ({ value }));
+
+      // Get types
+      const typesQuery = await executeQuery(`
+        SELECT DISTINCT type_dacteur as value
+        FROM acteurs
+        WHERE type_dacteur IS NOT NULL AND type_dacteur != ''
+        ORDER BY type_dacteur;
+      `);
+
+      // Get actions - extract in JavaScript
+      const actionsQuery = await executeQuery(`
+        SELECT DISTINCT propositions_de_services as value
+        FROM acteurs
+        WHERE propositions_de_services IS NOT NULL
+        AND propositions_de_services != ''
+        AND propositions_de_services LIKE '%"action"%';
+      `);
+
+      // Extract actions from JSON in JavaScript
+      const actionsSet = new Set<string>();
+      actionsQuery.forEach((row: any) => {
+        if (row.value) {
+          try {
+            // Match all action values in the JSON
+            const regex = /"action":\s*"([^"]+)"/g;
+            let match;
+            while ((match = regex.exec(row.value)) !== null) {
+              if (match[1]) {
+                actionsSet.add(match[1]);
+              }
+            }
+          } catch (e) {
+            // Skip invalid entries
+          }
+        }
+      });
+      const actions = Array.from(actionsSet)
+        .sort()
+        .map((value) => ({ value }));
+
+      console.log("Sources:", sources.length);
+      console.log("Types:", typesQuery.length);
+      console.log("Actions:", actions.length);
+
+      // Filter out null/empty values for types
+      const types = typesQuery.filter(
+        (t: any) => t.value && t.value !== "null",
+      );
 
       return {
         sources: [
@@ -260,7 +310,11 @@ export function useDuckDB() {
       // Apply same filters as searchActors
       if (filters.searchTerm) {
         const sanitized = filters.searchTerm.replace(/'/g, "''");
-        conditions.push(`LOWER(nom) LIKE LOWER('%${sanitized}%')`);
+        conditions.push(`(
+          LOWER(nom) LIKE LOWER('%${sanitized}%') OR
+          LOWER(siret) LIKE LOWER('%${sanitized}%') OR
+          LOWER(siren) LIKE LOWER('%${sanitized}%')
+        )`);
       }
       if (filters.source) {
         const sanitized = filters.source.replace(/'/g, "''");
@@ -281,8 +335,22 @@ export function useDuckDB() {
         conditions.push(`code_epci = '${sanitized}'`);
       }
 
+      // Filter by spatial bounds (bounding box)
+      if (filters.bounds) {
+        const { minLng, maxLng, minLat, maxLat } = filters.bounds;
+        conditions.push(`
+          longitude >= ${minLng} AND longitude <= ${maxLng} AND
+          latitude >= ${minLat} AND latitude <= ${maxLat}
+        `);
+      }
+
+      // Build WHERE clause
       const whereClause =
         conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+
+      // For EPCI stats, add the code_epci IS NOT NULL condition
+      const epciConditions = [...conditions, "code_epci IS NOT NULL"];
+      const epciWhereClause = "WHERE " + epciConditions.join(" AND ");
 
       // Query for multiple statistics
       const [bySource, byType, byEpci] = await Promise.all([
@@ -304,8 +372,7 @@ export function useDuckDB() {
         executeQuery(`
           SELECT code_epci as label, COUNT(*) as count
           FROM acteurs
-          ${whereClause}
-          WHERE code_epci IS NOT NULL
+          ${epciWhereClause}
           GROUP BY code_epci
           ORDER BY count DESC
           LIMIT 15;
