@@ -15,6 +15,13 @@ export interface SearchFilters {
   source?: string;
   typeActeur?: string;
   action?: string;
+  epci?: string;
+  bounds?: {
+    minLng: number;
+    maxLng: number;
+    minLat: number;
+    maxLat: number;
+  };
 }
 
 // Convert BigInt values to strings to avoid serialization issues
@@ -117,10 +124,14 @@ export function useDuckDB() {
 
       const conditions: string[] = [];
 
-      // Filter by name (case-insensitive)
+      // Filter by name, SIRET, or SIREN (case-insensitive)
       if (filters.searchTerm) {
         const sanitized = filters.searchTerm.replace(/'/g, "''");
-        conditions.push(`LOWER(nom) LIKE LOWER('%${sanitized}%')`);
+        conditions.push(`(
+          LOWER(nom) LIKE LOWER('%${sanitized}%') OR
+          LOWER(siret) LIKE LOWER('%${sanitized}%') OR
+          LOWER(siren) LIKE LOWER('%${sanitized}%')
+        )`);
       }
 
       // Filter by source (in paternite field)
@@ -143,6 +154,21 @@ export function useDuckDB() {
         );
       }
 
+      // Filter by EPCI code
+      if (filters.epci) {
+        const sanitized = filters.epci.replace(/'/g, "''");
+        conditions.push(`code_epci = '${sanitized}'`);
+      }
+
+      // Filter by spatial bounds (bounding box)
+      if (filters.bounds) {
+        const { minLng, maxLng, minLat, maxLat } = filters.bounds;
+        conditions.push(`
+          longitude >= ${minLng} AND longitude <= ${maxLng} AND
+          latitude >= ${minLat} AND latitude <= ${maxLat}
+        `);
+      }
+
       let sql = "SELECT * FROM acteurs";
       if (conditions.length > 0) {
         sql += " WHERE " + conditions.join(" AND ");
@@ -150,6 +176,147 @@ export function useDuckDB() {
       sql += " LIMIT 1000000;"; // Reasonable limit for map rendering
 
       return executeQuery(sql);
+    },
+    [connection, executeQuery],
+  );
+
+  // Get a single actor by ID or coordinates
+  const getActorDetails = useCallback(
+    async (latitude: number, longitude: number): Promise<any | null> => {
+      if (!connection) {
+        return null;
+      }
+
+      const sql = `
+        SELECT * FROM acteurs
+        WHERE latitude = ${latitude} AND longitude = ${longitude}
+        LIMIT 1;
+      `;
+
+      const results = await executeQuery(sql);
+      return results.length > 0 ? results[0] : null;
+    },
+    [connection, executeQuery],
+  );
+
+  // Get distinct filter options from the database
+  const getFilterOptions = useCallback(async () => {
+    if (!connection) {
+      return null;
+    }
+
+    try {
+      const [sources, types, actions] = await Promise.all([
+        executeQuery(`
+          SELECT DISTINCT paternite as value
+          FROM acteurs
+          WHERE paternite IS NOT NULL
+          ORDER BY paternite;
+        `),
+        executeQuery(`
+          SELECT DISTINCT type_dacteur as value
+          FROM acteurs
+          WHERE type_dacteur IS NOT NULL
+          ORDER BY type_dacteur;
+        `),
+        executeQuery(`
+          SELECT DISTINCT json_extract_string(propositions_de_services, '$.action') as value
+          FROM acteurs
+          WHERE propositions_de_services IS NOT NULL
+          AND json_extract_string(propositions_de_services, '$.action') IS NOT NULL
+          ORDER BY value;
+        `),
+      ]);
+
+      return {
+        sources: [
+          { value: "", label: "Toutes les sources" },
+          ...sources.map((s: any) => ({ value: s.value, label: s.value })),
+        ],
+        types: [
+          { value: "", label: "Tous les types" },
+          ...types.map((t: any) => ({ value: t.value, label: t.value })),
+        ],
+        actions: [
+          { value: "", label: "Toutes les actions" },
+          ...actions.map((a: any) => ({ value: a.value, label: a.value })),
+        ],
+      };
+    } catch (error) {
+      console.error("Error loading filter options:", error);
+      return null;
+    }
+  }, [connection, executeQuery]);
+
+  // Get statistics for displayed data
+  const getStatistics = useCallback(
+    async (filters: SearchFilters = {}): Promise<any> => {
+      if (!connection) {
+        return null;
+      }
+
+      const conditions: string[] = [];
+
+      // Apply same filters as searchActors
+      if (filters.searchTerm) {
+        const sanitized = filters.searchTerm.replace(/'/g, "''");
+        conditions.push(`LOWER(nom) LIKE LOWER('%${sanitized}%')`);
+      }
+      if (filters.source) {
+        const sanitized = filters.source.replace(/'/g, "''");
+        conditions.push(`paternite LIKE '%${sanitized}%'`);
+      }
+      if (filters.typeActeur) {
+        const sanitized = filters.typeActeur.replace(/'/g, "''");
+        conditions.push(`type_dacteur = '${sanitized}'`);
+      }
+      if (filters.action) {
+        const sanitized = filters.action.replace(/'/g, "''");
+        conditions.push(
+          `propositions_de_services LIKE '%"action": "${sanitized}"%'`,
+        );
+      }
+      if (filters.epci) {
+        const sanitized = filters.epci.replace(/'/g, "''");
+        conditions.push(`code_epci = '${sanitized}'`);
+      }
+
+      const whereClause =
+        conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+
+      // Query for multiple statistics
+      const [bySource, byType, byEpci] = await Promise.all([
+        executeQuery(`
+          SELECT paternite as label, COUNT(*) as count
+          FROM acteurs
+          ${whereClause}
+          GROUP BY paternite
+          ORDER BY count DESC
+          LIMIT 10;
+        `),
+        executeQuery(`
+          SELECT type_dacteur as label, COUNT(*) as count
+          FROM acteurs
+          ${whereClause}
+          GROUP BY type_dacteur
+          ORDER BY count DESC;
+        `),
+        executeQuery(`
+          SELECT code_epci as label, COUNT(*) as count
+          FROM acteurs
+          ${whereClause}
+          WHERE code_epci IS NOT NULL
+          GROUP BY code_epci
+          ORDER BY count DESC
+          LIMIT 15;
+        `),
+      ]);
+
+      return {
+        bySource,
+        byType,
+        byEpci,
+      };
     },
     [connection, executeQuery],
   );
@@ -162,5 +329,8 @@ export function useDuckDB() {
     error,
     executeQuery,
     searchActors,
+    getActorDetails,
+    getFilterOptions,
+    getStatistics,
   };
 }

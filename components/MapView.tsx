@@ -1,16 +1,35 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import Map, { Source, Layer, MapRef } from "react-map-gl/maplibre";
 import type { LayerProps } from "react-map-gl/maplibre";
+import { createModal } from "@codegouvfr/react-dsfr/Modal";
+import { Button } from "@codegouvfr/react-dsfr/Button";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 interface MapViewProps {
   data: any[];
+  onMarkerClick?: (latitude: number, longitude: number) => void;
+  mapRef?: any;
+  onMapMove?: () => void;
+  isSpatialMode?: boolean;
 }
 
-export function MapView({ data }: MapViewProps) {
-  const mapRef = useRef<MapRef>(null);
+const actorModal = createModal({
+  id: "actor-details-modal",
+  isOpenedByDefault: false,
+});
+
+export function MapView({
+  data,
+  onMarkerClick,
+  mapRef: externalMapRef,
+  onMapMove,
+  isSpatialMode = false,
+}: MapViewProps) {
+  const internalMapRef = useRef<MapRef>(null);
+  const mapRef = externalMapRef || internalMapRef;
+  const [selectedActor, setSelectedActor] = useState<any | null>(null);
 
   // Convert data to GeoJSON
   const geoJsonData = useMemo(() => {
@@ -50,6 +69,64 @@ export function MapView({ data }: MapViewProps) {
     },
   };
 
+  const handleMapClick = (event: any) => {
+    const features = event.features;
+    if (!features || features.length === 0) return;
+
+    const feature = features[0];
+    const { latitude, longitude, ...properties } = feature.properties;
+
+    // Set the selected actor with all properties
+    setSelectedActor({
+      latitude: feature.geometry.coordinates[1],
+      longitude: feature.geometry.coordinates[0],
+      ...properties,
+    });
+
+    // Open the modal
+    actorModal.open();
+
+    // Callback for parent component to fetch full details
+    if (onMarkerClick) {
+      onMarkerClick(
+        feature.geometry.coordinates[1],
+        feature.geometry.coordinates[0],
+      );
+    }
+  };
+
+  // Auto-fit bounds when data changes (only if not in spatial mode)
+  useEffect(() => {
+    if (!mapRef.current || !geoJsonData.features.length || isSpatialMode)
+      return;
+
+    const coordinates = geoJsonData.features.map(
+      (feature) => feature.geometry.coordinates,
+    );
+
+    // Calculate bounds
+    const lngs = coordinates.map((coord) => coord[0]);
+    const lats = coordinates.map((coord) => coord[1]);
+
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+
+    // Fit bounds with padding
+    mapRef.current.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      {
+        padding: 50,
+        maxZoom: 15,
+        duration: 1000,
+      },
+    );
+  }, [geoJsonData, isSpatialMode]);
+
   return (
     <div className="relative h-screen w-screen">
       <Map
@@ -61,6 +138,10 @@ export function MapView({ data }: MapViewProps) {
         }}
         style={{ width: "100%", height: "100%" }}
         mapStyle="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
+        interactiveLayerIds={["actors-points"]}
+        onClick={handleMapClick}
+        cursor="pointer"
+        onMoveEnd={isSpatialMode && onMapMove ? onMapMove : undefined}
       >
         <Source id="actors" type="geojson" data={geoJsonData} />
         <Layer {...pointsLayer} />
@@ -72,6 +153,148 @@ export function MapView({ data }: MapViewProps) {
           {geoJsonData.features.length.toLocaleString("fr-FR")} résultats
         </span>
       </div>
+
+      {/* Actor Details Modal */}
+      <actorModal.Component
+        title={selectedActor?.nom || "Détails de l'acteur"}
+        size="large"
+        buttons={[
+          ...(selectedActor?.siret
+            ? [
+                {
+                  children: "Annuaire (SIRET)",
+                  iconId: "fr-icon-building-line",
+                  linkProps: {
+                    href: `https://annuaire-entreprises.data.gouv.fr/etablissement/${selectedActor.siret}`,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                  },
+                  priority: "tertiary no outline" as const,
+                },
+              ]
+            : []),
+          ...(selectedActor?.siren
+            ? [
+                {
+                  children: "Annuaire Entreprise",
+                  iconId: "fr-icon-building-line",
+                  linkProps: {
+                    href: `https://annuaire-entreprises.data.gouv.fr/entreprise/${selectedActor.siren}`,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                  },
+                  priority: "tertiary no outline" as const,
+                },
+                {
+                  children: "Societe.ninja",
+                  iconId: "fr-icon-external-link-line",
+                  linkProps: {
+                    href: `https://www.societe.ninja/data.html?siren=${selectedActor.siren}`,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                  },
+                  priority: "tertiary no outline" as const,
+                },
+              ]
+            : []),
+          ...(selectedActor?.latitude && selectedActor?.longitude
+            ? [
+                {
+                  children: "Google Maps",
+                  iconId: "fr-icon-map-pin-2-line",
+                  linkProps: {
+                    href: `https://www.google.com/maps?q=${selectedActor.latitude},${selectedActor.longitude}`,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                  },
+                  priority: "tertiary no outline" as const,
+                },
+                {
+                  children: "OpenStreetMap",
+                  iconId: "fr-icon-map-pin-2-line",
+                  linkProps: {
+                    href: `https://www.openstreetmap.org/?mlat=${selectedActor.latitude}&mlon=${selectedActor.longitude}&zoom=16`,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                  },
+                  priority: "tertiary no outline" as const,
+                },
+              ]
+            : []),
+        ]}
+      >
+        {selectedActor && (
+          <>
+            <div>
+              <div className="fr-grid-row fr-grid-row--gutters">
+                <div className="fr-col-12">
+                  <h4 className="fr-h6">Informations générales</h4>
+                  {selectedActor.nom && (
+                    <p>
+                      <strong>Nom :</strong> {selectedActor.nom}
+                    </p>
+                  )}
+                  {selectedActor.adresse && (
+                    <p>
+                      <strong>Adresse :</strong> {selectedActor.adresse}
+                    </p>
+                  )}
+                  {selectedActor.code_postal && (
+                    <p>
+                      <strong>Code postal :</strong> {selectedActor.code_postal}
+                    </p>
+                  )}
+                  {selectedActor.ville && (
+                    <p>
+                      <strong>Ville :</strong> {selectedActor.ville}
+                    </p>
+                  )}
+                  {selectedActor.type_dacteur && (
+                    <p>
+                      <strong>Type d'acteur :</strong>{" "}
+                      {selectedActor.type_dacteur}
+                    </p>
+                  )}
+                </div>
+
+                {(selectedActor.latitude || selectedActor.longitude) && (
+                  <div className="fr-col-12 fr-mt-2w">
+                    <h4 className="fr-h6">Localisation</h4>
+                    <p>
+                      <strong>Latitude :</strong> {selectedActor.latitude}
+                    </p>
+                    <p>
+                      <strong>Longitude :</strong> {selectedActor.longitude}
+                    </p>
+                  </div>
+                )}
+
+                {selectedActor.paternite && (
+                  <div className="fr-col-12 fr-mt-2w">
+                    <h4 className="fr-h6">Source</h4>
+                    <p>{selectedActor.paternite}</p>
+                  </div>
+                )}
+
+                <div className="fr-col-12 fr-mt-3w">
+                  <h4 className="fr-h6">Toutes les données</h4>
+                  <pre
+                    style={{
+                      backgroundColor: "var(--background-contrast-grey)",
+                      padding: "1rem",
+                      borderRadius: "0.25rem",
+                      overflow: "auto",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    {JSON.stringify(selectedActor, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </actorModal.Component>
     </div>
   );
 }

@@ -3,9 +3,9 @@ import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Longue Vie Aux Objets - Carte des acteurs",
+  title: "Que Faire de Mes Bidules - Carte des acteurs",
   description:
-    "Exploration interactive des acteurs de la réparation et du réemploi en France",
+    "Exploration interactive des acteurs de la réparation et du réemploi en France. Preuve de concept technique d'une exploration avancée sans serveur, avec duckdb",
 };
 
 export default function RootLayout({

@@ -1,4 +1,4 @@
-# Longue Vie Aux Objets - Carte Interactive
+# Que Faire de Mes Bidules - Carte Interactive
 
 Application Next.js pour explorer interactivement les acteurs de la réparation et du réemploi en France.
 
@@ -87,7 +87,7 @@ Le fichier `lib/duckdb.ts` initialise DuckDB-WASM en utilisant les bundles CDN (
 
 ### Données
 
-**Source :** [ADEME - Base Longue Vie Aux Objets](https://data.ademe.fr/data-fair/api/v1/datasets/wvw1zecq4f4gyvonve5j0hr7/data-files/acteurs.csv)
+**Source :** [ADEME - Base Que Faire de Mes Bidules](https://data.ademe.fr/data-fair/api/v1/datasets/wvw1zecq4f4gyvonve5j0hr7/data-files/acteurs.csv)
 
 Le dataset contient des informations sur :
 - Points de collecte (PAV)
